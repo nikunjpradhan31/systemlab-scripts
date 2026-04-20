@@ -31,8 +31,11 @@ sudo systemctl start rke2-server.service
 #sudo systemctl status rke2-server
 
 
+sudo ln -s /var/lib/rancher/rke2/bin/kubectl /usr/local/bin/kubectl
 sudo nano /etc/rancher/rke2/rke2.yaml
 server: https://<NODE_IP>:6443
+
+
 
 #Make avaiable to user
 mkdir -p $HOME/.kube
