@@ -1,0 +1,62 @@
+sudo apt-get install ondemand-dex
+sudo systemctl enable ondemand-dex.service
+sudo systemctl start ondemand-dex.service
+#sudo systemctl restart ondemand-dex
+
+# /etc/ood/config/ood_portal.yml
+apache_global_settings:
+  - "OIDCXForwardedHeaders X-Forwarded-Proto"
+host: "localhost"
+servername: "localhost"
+port: 82
+auth:
+  - "AuthType openid-connect"
+  - "Require valid-user"
+
+custom_vhost_directives:
+  - 'Redirect "/logout" "http://localhost:82/oidc?logout=http%3A%2F%2Flocalhost:82%2F"'
+
+#logout_redirect
+dex:
+  issuer: "http://localhost:82/dex"
+  client_redirect_uris:
+    - 'http://localhost:82/oidc'
+
+  client_id: "ood"
+  client_secret: "/etc/ood/dex/ondemand.secret"
+  http_port: 5556
+  http_host: "0.0.0.0"
+  enable_password_db: false
+  connectors:
+    - type: ldap
+      id: lldap
+      name: LLDAP
+      config:
+        host: "localhost:3890"
+        insecureNoSSL: true
+        bindDN: "uid=admin,ou=people,dc=hpc,dc=local"
+        bindPW: "admin_password"
+        userSearch:
+          baseDN: "ou=people,dc=hpc,dc=local"
+          filter: "(objectClass=person)"
+          username: uid
+          idAttr: uid
+          emailAttr: mail
+          nameAttr: displayName
+          preferredUsernameAttr: uid
+        groupSearch:
+          baseDN: "ou=groups,dc=hpc,dc=local"
+          filter: "(objectClass=groupOfNames)"
+          userMatchers:
+            - userAttr: uid
+              groupAttr: uniquemember
+          nameAttr: cn
+
+
+sudo /opt/ood/ood-portal-generator/sbin/update_ood_portal
+sudo /opt/ood/ood-portal-generator/bin/generate -c /etc/ood/config/ood_portal.yml
+
+sudo chown root:root /etc/ood/config/ood_portal.yml
+sudo chmod 0600 /etc/ood/config/ood_portal.yml
+
+

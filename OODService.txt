@@ -1,0 +1,25 @@
+sudo apt install apt-transport-https ca-certificates
+wget -O /tmp/ondemand-release-web_4.1.0-noble_all.deb https://apt.osc.edu/ondemand/4.1/ondemand-release-web_4.1.0-noble_all.deb
+sudo apt install /tmp/ondemand-release-web_4.1.0-noble_all.deb
+sudo apt update
+
+sudo apt install ondemand
+
+sudo systemctl start apache2
+sudo systemctl enable apache2
+
+ls /etc/apache2/sites-available/
+sudo a2ensite ood-portal
+sudo a2dissite 000-default
+sudo systemctl reload apache2
+
+# go to /etc/apache2/site-avaiable not /opt/rh/httpd24/root/etc/httpd/conf.d/auth-config.conf
+# go to /etc/ood/config
+# cat /var/log/apache2/192.168.1.10_error.log 
+
+if switch to port 82 
+
+sudo nano /etc/apache2/ports.conf
+Listen 82
+sudo nano /etc/apache2/sites-available/000-default.conf
+<VirtualHost *:82>

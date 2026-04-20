@@ -1,0 +1,18 @@
+lldap 
+
+docker-compose.yaml
+####
+services:
+  lldap:
+    image: lldap/lldap:latest
+    ports:
+      - "3890:3890"
+      - "17170:17170"
+    environment:
+      - LLDAP_LDAP_BASE_DN=dc=hpc,dc=local
+      - LLDAP_LDAP_USER_PASS=admin_password
+      - LLDAP_LDAP_USER_DN=admin
+      - LLDAP_JWT_SECRET=^=lb.bwVZphy!wM?LB}o4bvM,Q9i;l>T
+    volumes:
+      - ./data:/data
+####

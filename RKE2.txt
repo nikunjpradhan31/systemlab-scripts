@@ -1,0 +1,162 @@
+#System Up-to-date
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y curl wget apt-transport-https software-properties-common gnupg2
+
+#Turn off swapoff
+sudo swapoff -a
+sudo sed -i '/ swap / s/^/#/' /etc/fstab
+
+#RKE2 required kernal parameters
+sudo modprobe overlay
+sudo modprobe br_netfilter
+sudo tee /etc/modules-load.d/k8s.conf <<EOF
+overlay
+br_netfilter
+EOF
+sudo tee /etc/sysctl.d/k8s.conf <<EOF
+net.bridge.bridge-nf-call-iptables  = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.ip_forward                 = 1
+EOF
+sudo sysctl --system 
+
+#Install RKE2
+curl -sfL https://get.rke2.io | sudo sh -
+which rke2
+which rke2-server
+
+#Start RKE2 server
+sudo systemctl enable rke2-server.service
+sudo systemctl start rke2-server.service
+#sudo systemctl status rke2-server
+
+
+sudo nano /etc/rancher/rke2/rke2.yaml
+server: https://<NODE_IP>:6443
+
+#Make avaiable to user
+mkdir -p $HOME/.kube
+sudo cp /etc/rancher/rke2/rke2.yaml $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+chmod 600 $HOME/.kube/config
+
+nano ~/.bashrc
+export KUBECONFIG=$HOME/.kube/config
+export PATH=$PATH:/var/lib/rancher/rke2/bin
+source ~/.bashrc
+echo $KUBECONFIG
+
+
+sandt_cluster.yml
+####
+# /etc/ood/config/clusters.d/sandt_cluster.yml
+---
+v2:
+  metadata:
+    title: "S&T Cluster"
+  #login:
+  #  host: "nikunj-lenovo"
+  job:
+    adapter: "kubernetes"
+    config_file: "$HOME/.kube/config"
+    bin: "/var/lib/rancher/rke2/bin/kubectl"
+    cluster: "default"
+    context: "default"
+    username_prefix: "prod-"
+    namespace_prefix: "user-"
+    all_namespaces: false
+    auto_supplemental_groups: false
+    server:
+      endpoint: "https://localhost:6443"
+      cert_authority_file: "/var/lib/rancher/rke2/server/tls/server-ca.crt"
+    auth:
+      type: "oidc"
+  batch_connect:
+    ssh_allow: false
+####
+
+
+kubectl apply -f https://raw.githubusercontent.com/OSC/ondemand/master/hooks/k8s-bootstrap/ondemand.yaml
+
+sudo ln -s /var/lib/rancher/rke2/bin/kubectl /usr/local/bin/kubectl
+sudo -u ood-user kubectl
+
+token.yml
+###
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: ondemand-token
+  namespace: ondemand
+  annotations:
+    kubernetes.io/service-account.name: ondemand
+###
+kubectl apply -f token.yml
+TOKEN=$(kubectl describe serviceaccount ondemand -n ondemand | grep Tokens | awk '{ print $2 }')
+kubectl describe secret $TOKEN -n ondemand | grep "token:"
+
+
+#as root
+kubectl config set-cluster kubernetes --server=http://192.168.0.178:6443 --certificate-authority=/etc/ood/k8s-ca.crt
+kubectl config set-credentials ondemand@kubernetes --token=eyJhbGciOiJSUzI1NiIsImtpZCI6InhHS21LZ1Z0V0V1UEFCelRLbkUzRDNxMnZzZGJuamlNYTdlZ0s2alNmYTgifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJvbmRlbWFuZCIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJvbmRlbWFuZC10b2tlbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJvbmRlbWFuZCIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50LnVpZCI6ImJkZTZjNTNlLTFkOTgtNDk4OS05Nzc0LWY2M2QxY2Y1MjBhMiIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDpvbmRlbWFuZDpvbmRlbWFuZCJ9.XArvTI9m5n8MgiP4WrrI3AR5YtxG5KL76zfJs6M_JSVNl0AENeZxYxVI6VmD296CMd1ILa6lTIarzYYfxzTU1oGgHRAEuVipMDN5o7L1Yhf51C_PZM8aSLMiS3vJBXaQytpcjD1scjMI07l-8zM0DzWcJEQn6Td9PHHxuke7Io6aQT7HC_ceO9ZWvyGuhdzjCDtopFwx25Ue9JyhIeB25o4muB2DLL3oMw60iU0IB_2xpXTQ2K3yOMDWK-zHYw7L2l7Uup8OmaShCvt7m0L_Pwm-bkix_0WFdFWHheB7TWI8ZHMWq3zGvJjAmmeE-6nAoHuWmANhnE7N0NFM7hgqFQ
+kubectl config set-context ondemand@kubernetes --cluster=kubernetes --user=ondemand@kubernetes
+kubectl config use-context ondemand@kubernetes
+
+/etc/ood/config/hooks.env
+###
+K8S_USERNAME_PREFIX="prod-"
+NAMESPACE_PREFIX="user-"
+NETWORK_POLICY_ALLOW_CIDR="127.0.0.1/32"
+
+USE_JOB_POD_REAPER="true"
+IDP=ISSUER_URL="http://localhost:5556/dex"
+CLIENT_ID="ood"
+CLIENT_SECRET="a0ad0516-e39c-44cb-8bed-7d64999e55f2"
+###
+
+/etc/rancher/rke2/config.yaml 
+###
+#disable:
+#  - rke2-ingress-nginx
+kube-apiserver-arg:
+  - "oidc-issuer-url=http://localhost:82/dex"
+  - "oidc-client-id=ood"
+  - "oidc-username-claim=preferred_username"
+  - "oidc-groups-claim=groups"
+###
+
+kubectl apply -f https://github.com/OSC/k8-namespace-reaper/releases/latest/download/ondemand-deployment.yaml
+kubectl apply -f https://github.com/OSC/k8-namespace-reaper/releases/latest/download/deployment.yaml
+
+kubectl apply -f https://github.com/OSC/job-pod-reaper/releases/latest/download/namespace-rbac.yaml
+kubectl apply -f https://github.com/OSC/job-pod-reaper/releases/latest/download/ondemand-deployment.yaml
+
+
+
+
+
+
+
+
+
+
+Adding config/credentials/production.key to store the encryption key: 4ba16ee507bb7f2a7302d7f728ae661c
+
+Save this in a password manager your team can access.
+
+If you lose the key, no one, including you, can access anything encrypted with it.
+
+      create  config/credentials/production.key
+
+IMPORTANT: Don't commit config/credentials/production.key. Add this to your ignore file:
+
+/config/credentials/production.key
+  on_green
+
+No $VISUAL or $EDITOR to open file in. Assign one like this:
+
+VISUAL="mate --wait" bin/rails credentials:edit
+
+For editors that fork and exit immediately, it's important to pass a wait flag;
+otherwise, the file will be saved immediately with no chance to edit.
