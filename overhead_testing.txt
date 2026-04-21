@@ -26,7 +26,7 @@ kubectl apply -f test_pod.yaml
 
 for i in $(seq 1 30); do
   kubectl delete pod startup-test --ignore-not-found=true
-  kubectl apply -f pod.yaml
+  kubectl apply -f test_pod.yaml
 
   echo "Run $i"
 
@@ -51,6 +51,36 @@ kubectl get events | grep startup-test
 mpstat -P ALL 1
 iostat -x 1
 vmstat 1
+iostat -x 1
+
+# Start monitoring (background)
+mpstat -P ALL 1 > mpstat.log &
+MPSTAT_PID=$!
+
+iostat -x 1 > iostat.log &
+IOSTAT_PID=$!
+
+vmstat 1 > vmstat.log &
+VMSTAT_PID=$!
+
+# (optional) run a second iostat if you explicitly want two separate captures
+iostat -x 1 > iostat2.log &
+IOSTAT2_PID=$!
+
+# Kubernetes loop
+for i in $(seq 1 30); do
+  kubectl delete pod startup-test --ignore-not-found=true
+  kubectl apply -f test_pod.yaml
+
+  echo "Run $i"
+
+  kubectl wait --for=condition=Ready pod/startup-test --timeout=120s
+
+  sleep 5
+done
+
+# Stop monitoring
+kill $MPSTAT_PID $IOSTAT_PID $VMSTAT_PID $IOSTAT2_PID 2>/dev/null
 
 #proxmox only
 qm monitor <vmid>
