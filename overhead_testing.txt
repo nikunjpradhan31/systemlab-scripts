@@ -1,0 +1,56 @@
+Before Testing:
+
+kubectl version
+containerd --version
+
+nproc
+free -h
+uname -r
+
+sudo swapoff -a
+
+####
+apiVersion: v1
+kind: Pod
+metadata:
+  name: startup-test
+spec:
+  containers:
+  - name: test
+    image: busybox
+    command: ["sh", "-c", "echo STARTED; sleep 3600"]
+  restartPolicy: Never
+####
+
+kubectl apply -f test_pod.yaml
+
+for i in $(seq 1 30); do
+  kubectl delete pod startup-test --ignore-not-found=true
+  kubectl apply -f pod.yaml
+
+  echo "Run $i"
+
+  kubectl wait --for=condition=Ready pod/startup-test --timeout=120s
+
+  # Save full pod JSON for this run
+  kubectl get pod startup-test -o json > pod${i}.json
+
+  # Print startup latency (seconds)
+  jq '
+    .status as $s |
+    ($s.containerStatuses[0].state.running.startedAt | fromdateiso8601) -
+    ($s.startTime | fromdateiso8601)
+  ' pod${i}.json
+
+  sleep 5
+done
+
+kubectl get events --watch --sort-by=.metadata.creationTimestamp
+kubectl get events | grep startup-test
+
+mpstat -P ALL 1
+iostat -x 1
+vmstat 1
+
+#proxmox only
+qm monitor <vmid>
