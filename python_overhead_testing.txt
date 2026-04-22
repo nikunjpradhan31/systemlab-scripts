@@ -1,0 +1,47 @@
+echo "id,client_before_create_ms,initial_time_ms,true_startup_time_ms" > startup_log.csv
+
+for i in $(seq 1 30); do
+  kubectl delete pod startup-test --ignore-not-found=true
+
+  # client-side timestamp (before creation)
+  client_before=$(date +%s%3N)
+
+  kubectl apply -f test_pod.yaml
+
+  echo "Run $i"
+
+  kubectl wait --for=condition=Ready pod/startup-test --timeout=120s
+
+  pod_start=$(kubectl get pod startup-test -o jsonpath='{.status.startTime}')
+  initial_ms=$(date -d "$pod_start" +%s%3N)
+
+  true_ms=$(kubectl logs startup-test | head -n 1)
+
+  echo "$i,$client_before,$initial_ms,$true_ms" >> startup_log.csv
+
+  sleep 5
+done
+
+test_pod.yaml
+####
+apiVersion: v1
+kind: Pod
+metadata:
+  name: startup-test
+spec:
+  containers:
+  - name: test
+    image: python:3.11-slim
+    command:
+      - python
+      - -u
+      - -c
+      - |
+        import time
+        print(int(time.time_ns() / 1_000_000))
+        print("STARTED")
+        import time
+        time.sleep(3600)
+  restartPolicy: Never
+
+####
