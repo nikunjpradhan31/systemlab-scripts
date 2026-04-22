@@ -45,3 +45,42 @@ spec:
   restartPolicy: Never
 
 ####
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# load data
+df = pd.read_csv("startup_log.csv")
+
+# ensure numeric
+for c in ["client_before_create_ms", "initial_time_ms", "true_startup_time_ms"]:
+    df[c] = pd.to_numeric(df[c], errors="coerce")
+
+# compute deltas
+df["client_delta_ms"] = (df["true_startup_time_ms"] - df["client_before_create_ms"])/ 10000
+df["k8s_delta_ms"] = (df["true_startup_time_ms"] -  df["initial_time_ms"]) / 1000
+
+# averages
+avg_client = df["client_delta_ms"].mean()
+avg_k8s = df["k8s_delta_ms"].mean()
+
+print("Avg client_before - true:", avg_client)
+print("Avg initial_time - true:", avg_k8s)
+
+plt.figure()
+
+plt.plot(df["id"], df["client_delta_ms"], label="client_before - true (s)")
+plt.plot(df["id"], df["k8s_delta_ms"], label="initial_time - true (s)")
+
+plt.axhline(avg_client)
+plt.axhline(avg_k8s)
+
+plt.xlabel("Run id")
+plt.ylabel("Latency (seconds)")
+plt.legend()
+plt.tight_layout()
+
+# save file
+plt.savefig("startup_latency.png", dpi=300, bbox_inches="tight")
+
+plt.show()

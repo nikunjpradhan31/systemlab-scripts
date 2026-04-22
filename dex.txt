@@ -51,6 +51,8 @@ dex:
             - userAttr: uid
               groupAttr: uniquemember
           nameAttr: cn
+node_uri: '/node'
+
 
 
 sudo /opt/ood/ood-portal-generator/sbin/update_ood_portal
